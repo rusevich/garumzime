@@ -7,7 +7,10 @@ authors = [
     { name = "Richard Rusevich", email = "nonamemailnum1@gmail.com" }
 ]
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "datasets>=5.0.1",
+    "transformers>=5.15.0",
+]
 
 [project.scripts]
 garumzime = "garumzime:main"
