@@ -5,7 +5,7 @@ from datasets import load_dataset
 from garumzime.constants import LOCAL_DATA
 
 OUT = LOCAL_DATA / "datasets" / "fineweb2.jsonl"
-LIMIT = 100
+LIMIT = 10000
 
 
 def download():

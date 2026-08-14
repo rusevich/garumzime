@@ -1,0 +1,4 @@
+# basic starting config 
+
+dataset_name = "fineweb2"
+seq_length = 32

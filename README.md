@@ -13,5 +13,14 @@ After this, scripts:
 * run_inference.py - use trained model
 
 
-### First step
-data.py and data_sources need to be done
+
+### Preparing data:
+
+* seq length?
+g?
+how should the data look like?
+
+
+
+.bin and .idx files 
+each document is not more than
