@@ -5,6 +5,7 @@ ROOT = Path(__file__).resolve().parents[2]
 LOCAL_DATA = ROOT / ".local_data"
 DATASETS_PATH = LOCAL_DATA / "datasets"
 PROCESSED_DATA_PATH = LOCAL_DATA / "processed"
+TOKENIZER_PATH = LOCAL_DATA / "tokenizers"
 
 CONFIG_PATH = ROOT / "garumzime-config.toml"
 

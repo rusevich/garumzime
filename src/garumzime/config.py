@@ -8,6 +8,7 @@ from garumzime.constants import CONFIG_PATH
 class Config:
     dataset_name: str
     seq_length: int
+    tokenizer_name: str
 
     @staticmethod
     def from_toml():
@@ -15,8 +16,9 @@ class Config:
             data = tomllib.load(f)
         dataset_name = data["dataset_name"]
         seq_length = data["seq_length"]
+        tokenizer_name = data["tokenizer_name"]
 
-        return Config(dataset_name, seq_length)
+        return Config(dataset_name, seq_length, tokenizer_name)
 
 
 if __name__ == "__main__":

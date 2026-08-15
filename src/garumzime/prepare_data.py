@@ -1,45 +1,73 @@
 import json
 import unicodedata
 
+from sentence_splitter import SentenceSplitter
 from tqdm import tqdm
 
 from garumzime.config import Config
-from garumzime.constants import DATASETS_PATH, PROCESSED_DATA_PATH
+from garumzime.constants import DATASETS_PATH, PROCESSED_DATA_PATH, TOKENIZER_PATH
 
 
-def _remove_diacritics(input_str):
-    # Normalize to NFD (decompose characters into base + combining marks)
-    nfkd_form = unicodedata.normalize("NFD", input_str)
-    # Filter out combining marks (category 'Mn')
+def _remove_diacritics(input_str: str) -> str:
+    nfkd_form = unicodedata.normalize("NFD", input_str)  # base + combining mark
     return "".join([c for c in nfkd_form if unicodedata.category(c) != "Mn"])
+
+
+def _filter_text(text: str, tok: dict) -> str:
+    text_nfc = unicodedata.normalize("NFC", text)
+    result_text = ""
+    for c in text_nfc:
+        if c in tok["vocab"]:
+            result_text += c
+    return result_text
+
+
+def _save_feature_target(text: str, out_f):
+    feature = _remove_diacritics(text)
+    target = text
+    out = {"feature": feature, "target": target}
+    out_f.write(json.dumps(out, ensure_ascii=False) + "\n")
 
 
 def prepare_data(cfg: Config):
     dataset_path = f"{DATASETS_PATH / cfg.dataset_name}.jsonl"
     out_path = f"{PROCESSED_DATA_PATH / cfg.dataset_name}.jsonl"
+    tokenizer_path = f"{TOKENIZER_PATH / cfg.tokenizer_name}.json"
 
     seq_len: int = cfg.seq_length
 
-    all_chars = set()
+    sentence_splitter = SentenceSplitter(language="lv")
+
+    with open(tokenizer_path) as f:
+        tokenizer_dict = json.load(f)
 
     with open(dataset_path, "rb") as in_f, open(out_path, "w", encoding="utf-8") as out_f:
         for line in tqdm(list(in_f), desc="Processing documents..."):
             text = json.loads(line)["text"]
-            filtered_text = _remove_diacritics(text)
-            # dumb splitting - every "seq_len" characters is split
-            # TODO something better
-            for i in range(-(len(text) // -seq_len)):  # dirty upside-down division
-                feature = text[i * seq_len : (i + 1) * seq_len]
-                target = filtered_text[i * seq_len : (i + 1) * seq_len]
-                out = {"feature": feature, "target": target}
-                out_f.write(json.dumps(out) + "\n")
-                chars = set(feature)
-                all_chars |= chars
+            filtered_text = _filter_text(text, tokenizer_dict)
 
-    print(all_chars)
-    all_chars_list = list(all_chars)
-    with open("tokens.json", "w") as final:
-        json.dump(all_chars_list, final)
+            if not filtered_text:
+                continue
+
+            # split on sentences
+            sentences = sentence_splitter.split(filtered_text)
+
+            # packing sentences
+            # TODO - i made the quick decision and just removed sentences which
+            # are less than seq_len. this of course leads to data loss
+            # TODO - find a way to include long sentences
+            running_str = ""
+            for s in sentences:
+                if len(s) > seq_len:
+                    continue
+
+                if len(s) + len(running_str) > seq_len:
+                    _save_feature_target(running_str, out_f)
+                    running_str = s
+                else:
+                    running_str += s
+            if running_str:
+                _save_feature_target(running_str, out_f)
 
 
 if __name__ == "__main__":
