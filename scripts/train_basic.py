@@ -1,38 +1,27 @@
 import torch
+from garumzime.loader import DiacriticDataset
 from torch.optim import Adam
+from torch.utils.data import DataLoader
 from x_transformers import XTransformer
 
 from garumzime.config import Config
 from garumzime.constants import LOCAL_DATA
-from garumzime.loader import Loader
 
 torch.manual_seed(0)
 LEARNING_RATE = 3e-4
 BATCH_SIZE = 16
 ITERATIONS = 1000
+CHECKPOINT_RATE = 200
 
+DEVICE = "cpu"
+if torch.cuda_is_available():
+    DEVICE = "cuda"
 
-def get_batch(loader, batch_idx, seq_len):
-    start_idx, end_idx = batch_idx * BATCH_SIZE, (batch_idx + 1) * BATCH_SIZE
-    batch_feature = torch.zeros(BATCH_SIZE, seq_len, dtype=torch.long)
-    batch_target = torch.zeros(BATCH_SIZE, seq_len, dtype=torch.long)
-    batch_mask = torch.zeros(BATCH_SIZE, seq_len, dtype=torch.bool)
-    for i in range(start_idx, end_idx):
-        feature, target = loader[i]
-        f = torch.as_tensor(feature, dtype=torch.long)
-        t = torch.as_tensor(target, dtype=torch.long)
-        m = f != 0
-
-        batch_feature[i % BATCH_SIZE, :] = f
-        batch_target[i % BATCH_SIZE, :] = t
-        batch_mask[i % BATCH_SIZE, :] = m
-
-    return batch_feature, batch_target, batch_mask
+print(f"Device used: {DEVICE}")
 
 
 def train():
     cfg = Config.from_toml()
-    loader = Loader(cfg)
     model_save_path = LOCAL_DATA / "models" / "basic_model.pth"
 
     model = XTransformer(
@@ -46,19 +35,32 @@ def train():
         dec_heads=8,
         dec_max_seq_len=cfg.seq_length,
         tie_token_emb=True,  # tie embeddings of encoder and decoder
-    )
+        ignore_index=0,
+    ).to(DEVICE)
+
     optimizer = Adam(model.parameters(), lr=LEARNING_RATE)
 
+    ds = DiacriticDataset(cfg)
+    loader = DataLoader(
+        ds, batch_size=cfg.batch_size, shuffle=True, collate_fn=ds.collate, drop_last=True
+    )
+
     try:
-        for iteration in range(ITERATIONS):
-            features, targets, masks = get_batch(loader, iteration, cfg.seq_length)
-            loss = model(features, targets, mask=masks)
+        for iteration, (feature, target, mask) in enumerate(loader):
+            feature, target, mask = feature.to(DEVICE), target.to(DEVICE), mask.to(DEVICE)
+            loss = model(feature, target, mask=mask)
             loss.backward()
             optimizer.step()
             optimizer.zero_grad()
+            if iteration >= ITERATIONS:
+                break
             print(f"iteration: {iteration}, loss: {loss:.8f}")
-    except Exception as e:
-        print("i'm not sorry for being lazy, i don't fucking care")
+
+            if iteration % CHECKPOINT_RATE == 0:
+                print("saving the model...")
+                torch.save(model.state_dict(), model_save_path)
+
+    except (Exception, KeyboardInterrupt) as e:
         print(e)
     print("saving the model...")
     torch.save(model.state_dict(), model_save_path)
